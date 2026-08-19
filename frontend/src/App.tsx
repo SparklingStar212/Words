@@ -45,21 +45,146 @@ export default function App() {
     }
   }, [user]);
 
+  // Helper utility to convert VAPID public key for browser subscription
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const subscribeToPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push messaging is not supported by your browser.');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      alert('Permission for notifications was denied.');
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const publicVapidKey = 'YOUR_VAPID_PUBLIC_KEY_HERE'; // Replace with your actual public key string
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+      });
+
+      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, subscription })
+      });
+
+      if (!res.ok) throw new Error('Failed to save subscription on server');
+      alert('🔔 Successfully subscribed to daily push reminders!');
+    } catch (err) {
+      console.error('Push subscription error:', err);
+      alert('Failed to subscribe to push notifications.');
+    }
+  };
+
   const fetchDailyProgress = async (userId: string) => {
     setLoadingWords(true);
+    const today = new Date().toISOString().split('T')[0];
+    const cacheKey = `words_cache_${userId}_${today}`;
+
     try {
-      const res = await fetch(`http://localhost:6530/api/progress/${userId}`);
+      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/progress/${userId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch daily words');
 
       setWords(data.wordsAssigned);
       setDailyCompleted(data.completed);
+
+      // Cache successfully fetched daily data locally
+      localStorage.setItem(cacheKey, JSON.stringify({
+        wordsAssigned: data.wordsAssigned,
+        completed: data.completed
+      }));
     } catch (err) {
-      setError((err as Error).message);
+      // Offline fallback: load from local cache if available
+      const cachedData = localStorage.getItem(cacheKey);
+      if (cachedData) {
+        const parsed = JSON.parse(cachedData);
+        setWords(parsed.wordsAssigned);
+        setDailyCompleted(parsed.completed);
+        setError('You are offline. Showing cached daily words.');
+      } else {
+        setError((err as Error).message);
+      }
     } finally {
       setLoadingWords(false);
     }
   };
+
+
+
+  useEffect(() => {
+    const syncOfflineQueue = async () => {
+      if (!navigator.onLine || !user) return;
+
+      const queueStr = localStorage.getItem('words_offline_queue');
+      if (!queueStr) return;
+
+      const queue: Array<{ item: IWord; wordId: string; sentence: string }> = JSON.parse(queueStr);
+      if (queue.length === 0) return;
+
+      const remainingQueue = [];
+
+      for (const q of queue) {
+        try {
+          const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/ai/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              word: q.item.word,
+              sentence: q.sentence,
+              userId: user.id,
+              wordId: q.wordId
+            }),
+          });
+
+          const data = await res.json();
+          if (res.ok && data.passed) {
+            setFeedback(prev => ({
+              ...prev,
+              [q.wordId]: { success: `✨ ${data.feedback} (Synced offline)` }
+            }));
+            if (data.sessionCompleted) {
+              setDailyCompleted(true);
+            }
+          } else {
+            remainingQueue.push(q);
+          }
+        } catch {
+          // If connection drops during sync, keep it in the queue
+          remainingQueue.push(q);
+        }
+      }
+
+      localStorage.setItem('words_offline_queue', JSON.stringify(remainingQueue));
+    };
+
+    window.addEventListener('online', syncOfflineQueue);
+
+    // Attempt sync on app mount if currently online
+    if (navigator.onLine) {
+      syncOfflineQueue();
+    }
+
+    return () => {
+      window.removeEventListener('online', syncOfflineQueue);
+    };
+  }, [user]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +192,7 @@ export default function App() {
     const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
 
     try {
-      const res = await fetch(`http://localhost:6530${endpoint}`, {
+      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -115,7 +240,7 @@ export default function App() {
     }
   };
 
-  // Step 9: Updated AI Sentence Submission Handler with Streak Sync
+
   const handleSentenceSubmit = async (e: React.FormEvent, item: IWord, wordId: string) => {
     e.preventDefault();
     const userSentence = sentences[wordId] || '';
@@ -128,13 +253,26 @@ export default function App() {
       return;
     }
 
+    // Check if device is offline
+    if (!navigator.onLine) {
+      const existingQueue = JSON.parse(localStorage.getItem('words_offline_queue') || '[]');
+      existingQueue.push({ item, wordId, sentence: userSentence });
+      localStorage.setItem('words_offline_queue', JSON.stringify(existingQueue));
+
+      setFeedback({
+        ...feedback,
+        [wordId]: { success: '📶 Offline: Sentence queued. Will sync automatically when reconnected.' }
+      });
+      return;
+    }
+
     setFeedback({
       ...feedback,
       [wordId]: { success: 'Evaluating with AI...' }
     });
 
     try {
-      const res = await fetch('http://localhost:6530/api/ai/validate', {
+      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/ai/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -211,6 +349,14 @@ export default function App() {
               Sign Out
             </button>
           </div>
+
+          <button
+            onClick={subscribeToPush}
+            className="text-xs font-medium bg-[#D97757]/10 hover:bg-[#D97757]/20 text-[#D97757] px-3 py-1 rounded-full transition"
+            title="Enable Push Reminders"
+          >
+            🔔 Enable Reminders
+          </button>
         </header>
 
         {/* Main Content Area */}
@@ -285,16 +431,16 @@ export default function App() {
                           onChange={(e) => setSentences({ ...sentences, [item._id]: e.target.value })}
                           placeholder={`Type a sentence containing "${item.word}"...`}
                           className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none bg-[#F7F5F0]/30 ${isSuccess
-                              ? 'border-green-300 bg-green-50/30 text-green-800'
-                              : 'border-[#E5E2DC] focus:border-[#D97757]'
+                            ? 'border-green-300 bg-green-50/30 text-green-800'
+                            : 'border-[#E5E2DC] focus:border-[#D97757]'
                             }`}
                         />
                         <button
                           type="submit"
                           disabled={isSuccess}
                           className={`px-4 py-2 text-sm rounded-lg font-medium transition whitespace-nowrap ${isSuccess
-                              ? 'bg-green-600 text-white cursor-default'
-                              : 'bg-[#1C1C1A] text-white hover:bg-[#D97757]'
+                            ? 'bg-green-600 text-white cursor-default'
+                            : 'bg-[#1C1C1A] text-white hover:bg-[#D97757]'
                             }`}
                         >
                           {isSuccess ? 'Mastered' : 'Submit'}

@@ -1,0 +1,23 @@
+{
+  "name": "Words - Daily Vocabulary Habit",
+  "short_name": "Words",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F5F0",
+  "theme_color": "#D97757",
+  "description": "Absorb your daily words, listen to pronunciation, and build your vocabulary habit.",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

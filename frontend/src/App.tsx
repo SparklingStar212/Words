@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 
-interface IWord {
+export interface IWord {
   _id: string;
   word: string;
-  level: string;
+  level: 'Beginner' | 'Intermediate' | 'Advanced';
+  definition: string;        // Changed from definitions: string[]
   partOfSpeech: string;
-  phonetic: string;
-  audioUrl: string | null;
-  definitions: string[];
-  exampleSentences: string[];
+  phonetic?: string;
+  audioUrl?: string;
+  example: string;           // Changed from exampleSentences: string[]
 }
 
 interface UserSession {
@@ -63,6 +63,15 @@ export default function App() {
       return;
     }
 
+    const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+
+    // Safety check to ensure the key actually loaded from .env
+    if (!publicVapidKey) {
+      alert('Error: VITE_VAPID_PUBLIC_KEY is missing. Did you restart your Vite server after editing frontend/.env?');
+      console.error('VITE_VAPID_PUBLIC_KEY is undefined.');
+      return;
+    }
+
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
       alert('Permission for notifications was denied.');
@@ -71,14 +80,14 @@ export default function App() {
 
     try {
       const registration = await navigator.serviceWorker.ready;
-      const publicVapidKey = 'YOUR_VAPID_PUBLIC_KEY_HERE'; // Replace with your actual public key string
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
       });
 
-      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/push/subscribe`, {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:6530';
+      const res = await fetch(`${BACKEND_URL}/api/push/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user?.id, subscription })
@@ -88,39 +97,25 @@ export default function App() {
       alert('🔔 Successfully subscribed to daily push reminders!');
     } catch (err) {
       console.error('Push subscription error:', err);
-      alert('Failed to subscribe to push notifications.');
+      alert(`Failed to subscribe: ${(err as Error).message}`);
     }
   };
 
   const fetchDailyProgress = async (userId: string) => {
     setLoadingWords(true);
-    const today = new Date().toISOString().split('T')[0];
-    const cacheKey = `words_cache_${userId}_${today}`;
-
     try {
-      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/progress/${userId}`);
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:6530';
+      const res = await fetch(`${BACKEND_URL}/api/progress/${userId}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch daily words');
 
-      setWords(data.wordsAssigned);
-      setDailyCompleted(data.completed);
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch progress');
 
-      // Cache successfully fetched daily data locally
-      localStorage.setItem(cacheKey, JSON.stringify({
-        wordsAssigned: data.wordsAssigned,
-        completed: data.completed
-      }));
+      // Ensure it defaults to an empty array if undefined
+      setWords(data.wordsAssigned || []);
+      setDailyCompleted(data.completed || false);
     } catch (err) {
-      // Offline fallback: load from local cache if available
-      const cachedData = localStorage.getItem(cacheKey);
-      if (cachedData) {
-        const parsed = JSON.parse(cachedData);
-        setWords(parsed.wordsAssigned);
-        setDailyCompleted(parsed.completed);
-        setError('You are offline. Showing cached daily words.');
-      } else {
-        setError((err as Error).message);
-      }
+      console.error('Failed to load words:', err);
+      setWords([]); // Fallback to empty array so map() never crashes
     } finally {
       setLoadingWords(false);
     }
@@ -142,7 +137,7 @@ export default function App() {
 
       for (const q of queue) {
         try {
-          const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/ai/validate`, {
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/api/ai/validate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -192,7 +187,7 @@ export default function App() {
     const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
 
     try {
-      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}${endpoint}`, {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -222,24 +217,17 @@ export default function App() {
     setWords([]);
   };
 
-  // Native Audio Playback with Speech Synthesis fallback
-  const playAudio = (word: string, audioUrl: string | null) => {
-    if (audioUrl) {
-      const audio = new Audio(audioUrl);
-      audio.play().catch(() => speakWord(word));
-    } else {
-      speakWord(word);
-    }
-  };
-
-  const speakWord = (word: string) => {
+  const playAudio = (word: string) => {
     if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(word);
       utterance.lang = 'en-US';
+      utterance.rate = 0.9;
       window.speechSynthesis.speak(utterance);
+    } else {
+      console.warn('Speech synthesis is not supported in this browser.');
     }
   };
-
 
   const handleSentenceSubmit = async (e: React.FormEvent, item: IWord, wordId: string) => {
     e.preventDefault();
@@ -272,7 +260,7 @@ export default function App() {
     });
 
     try {
-      const res = await fetch(`${import.meta.env.BACKEND_BASE_URL}/api/ai/validate`, {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/api/ai/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -320,10 +308,11 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#F7F5F0] text-[#1C1C1A] flex flex-col items-center p-4 sm:p-6">
         {/* Header */}
-        <header className="w-full max-w-2xl flex justify-between items-center py-4 border-b border-[#E5E2DC] mb-6">
-          <h1 className="text-2xl font-serif tracking-wide font-bold">words</h1>
+        <header className="w-full max-w-2xl flex justify-between items-center py-4 border-b border-[#E5E2DC] mb-6 px-2 sm:px-0">
+          <h1 className="text-xl sm:text-2xl font-serif tracking-wide font-bold">words</h1>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Level Selector */}
             <select
               value={user.preferredLevel || 'Intermediate'}
               onChange={async (e) => {
@@ -332,31 +321,36 @@ export default function App() {
                 setUser(updatedUser);
                 localStorage.setItem('words_user', JSON.stringify(updatedUser));
               }}
-              className="text-xs bg-[#FFFFFF] border border-[#E5E2DC] rounded-lg px-2 py-1 text-[#1C1C1A] focus:outline-none focus:border-[#D97757]"
+              className="text-xs bg-[#FFFFFF] border border-[#E5E2DC] rounded-lg px-1.5 sm:px-2 py-1 text-[#1C1C1A] focus:outline-none focus:border-[#D97757]"
             >
               <option value="Beginner">Beginner</option>
               <option value="Intermediate">Intermediate</option>
               <option value="Advanced">Advanced</option>
             </select>
 
-            <span className="text-xs font-medium bg-[#D97757]/10 text-[#D97757] px-3 py-1 rounded-full">
-              🔥 Streak: {user.streakCount}
+            {/* Push Notification Button (Compact icon style on very small screens, full text on larger) */}
+            <button
+              onClick={subscribeToPush}
+              className="text-xs font-medium bg-[#D97757]/10 hover:bg-[#D97757]/20 text-[#D97757] px-2.5 py-1 rounded-full transition flex items-center gap-1"
+              title="Enable Push Reminders"
+            >
+              <span>🔔</span>
+              <span className="hidden sm:inline">Reminders</span>
+            </button>
+
+            {/* Streak Counter */}
+            <span className="text-xs font-medium bg-[#D97757]/10 text-[#D97757] px-2.5 py-1 rounded-full whitespace-nowrap">
+              🔥 {user.streakCount}
             </span>
+
+            {/* Sign Out */}
             <button
               onClick={handleLogout}
-              className="text-sm text-[#787570] hover:text-[#1C1C1A] transition"
+              className="text-xs sm:text-sm text-[#787570] hover:text-[#1C1C1A] transition"
             >
               Sign Out
             </button>
           </div>
-
-          <button
-            onClick={subscribeToPush}
-            className="text-xs font-medium bg-[#D97757]/10 hover:bg-[#D97757]/20 text-[#D97757] px-3 py-1 rounded-full transition"
-            title="Enable Push Reminders"
-          >
-            🔔 Enable Reminders
-          </button>
         </header>
 
         {/* Main Content Area */}
@@ -386,18 +380,22 @@ export default function App() {
                       <div>
                         <div className="flex items-baseline gap-3">
                           <span className="text-xs uppercase tracking-widest text-[#787570] font-semibold">
-                            0{index + 1} / 05
+                            0{index + 1} / 0{words.length}
                           </span>
                           <span className="text-xs bg-[#F7F5F0] text-[#787570] px-2 py-0.5 rounded border border-[#E5E2DC]">
                             {item.level}
                           </span>
                         </div>
                         <h3 className="text-2xl font-serif font-bold mt-1">{item.word}</h3>
-                        <p className="text-sm italic text-[#787570]">{item.partOfSpeech} • {item.phonetic}</p>
+
+                        {/* Safely render part of speech and phonetic only if they exist */}
+                        <p className="text-sm italic text-[#787570]">
+                          {item.partOfSpeech} {item.phonetic ? `• ${item.phonetic}` : ''}
+                        </p>
                       </div>
 
                       <button
-                        onClick={() => playAudio(item.word, item.audioUrl)}
+                        onClick={() => playAudio(item.word)}
                         className="p-3 bg-[#F7F5F0] hover:bg-[#D97757]/10 text-[#1C1C1A] hover:text-[#D97757] rounded-full transition border border-[#E5E2DC]"
                         title="Listen to pronunciation"
                       >
@@ -405,13 +403,14 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Definition & Reference Example */}
                     <div className="border-t border-[#E5E2DC] pt-3 text-sm">
                       <p className="font-medium text-[#1C1C1A] mb-1">Definition:</p>
-                      <p className="text-[#4A4741] mb-3">{item.definitions[0]}</p>
+                      {/* Changed from item.definitions[0] to item.definition */}
+                      <p className="text-[#4A4741] mb-3">{item.definition}</p>
 
                       <p className="font-medium text-[#1C1C1A] mb-1">Reference Example:</p>
-                      <p className="text-[#787570] italic">"{item.exampleSentences[0]}"</p>
+                      {/* Changed from item.exampleSentences[0] to item.example */}
+                      <p className="text-[#787570] italic">"{item.example}"</p>
                     </div>
 
                     {/* Active Sentence Production Form */}

@@ -8,6 +8,7 @@ import authRoutes from "./routes/authRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import { initReminderCron } from "./services/reminderService.js";
+import pushRoutes from "./routes/pushRoutes.js";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/push", pushRoutes);
 
 app.get("/", (req: Request, res: Response) => {
   res.json({ message: "Welcome to Words API - MVP" });

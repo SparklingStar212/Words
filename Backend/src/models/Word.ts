@@ -1,27 +1,29 @@
-import { Schema, model, Document } from "mongoose";
+// backend/src/models/Word.ts
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface IWord extends Document {
   word: string;
   level: "Beginner" | "Intermediate" | "Advanced";
+  definition: string;
   partOfSpeech: string;
-  phonetic: string;
   audioUrl: string;
-  definitions: string[];
-  exampleSentences: string[];
+  phonetic: string;
+  example: string;
 }
 
-const wordSchema = new Schema<IWord>({
-  word: { type: String, required: true, unique: true, trim: true },
+const WordSchema = new Schema<IWord>({
+  word: { type: String, required: true, unique: true, lowercase: true },
   level: {
     type: String,
     enum: ["Beginner", "Intermediate", "Advanced"],
-    default: "Intermediate",
+    required: true,
   },
-  partOfSpeech: { type: String, required: true },
+  definition: { type: String, required: true },
   phonetic: { type: String, default: "" },
+  partOfSpeech: { type: String, required: true },
   audioUrl: { type: String, default: "" },
-  definitions: { type: [String], required: true },
-  exampleSentences: { type: [String], required: true },
+  example: { type: String, required: true },
 });
 
-export const Word = model<IWord>("Word", wordSchema);
+export default mongoose.models.Word ||
+  mongoose.model<IWord>("Word", WordSchema);

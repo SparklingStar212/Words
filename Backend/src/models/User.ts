@@ -7,6 +7,7 @@ export interface IUser extends Document {
   streakCount: number;
   preferredLevel: "Beginner" | "Intermediate" | "Advanced";
   lastActiveDate?: string;
+  seenWords: string[];
   pushSubscription?: {
     endpoint: string;
     keys: {
@@ -28,7 +29,11 @@ const userSchema = new Schema<IUser>(
       default: "Intermediate",
     },
     lastActiveDate: { type: String },
-    pushSubscription: { type: Object, default: null }, // <-- Added property here
+    pushSubscription: { type: Object, default: null },
+    seenWords: {
+      type: [String],
+      default: [], // Stores lowercase words the user has already encountered
+    },
   },
   {
     timestamps: true,

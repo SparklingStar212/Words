@@ -35,8 +35,10 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event: intercept network requests and serve cached assets when available
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests and skip backend API routes
-  if (event.request.method === 'GET' && !event.request.url.includes('/api/')) {
+  const url = new URL(event.request.url);
+
+  // Only handle GET requests, skip backend API routes, and skip non-http schemes (like chrome-extension://)
+  if (event.request.method === 'GET' && url.protocol.startsWith('http') && !url.pathname.includes('/api/')) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {
@@ -49,7 +51,6 @@ self.addEventListener('fetch', (event) => {
           });
         });
       }).catch(() => {
-        // Fallback for offline navigation requests
         if (event.request.mode === 'navigate') {
           return caches.match('/index.html');
         }
@@ -65,7 +66,7 @@ self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {
     title: 'Words Reminder',
     body: 'Your daily words are waiting!',
-    icon: '/icons/icon-192.png',
+    icon: '/android-chrome-192x192.png',
     url: '/'
   };
 

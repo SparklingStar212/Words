@@ -75,7 +75,7 @@ export const initReminderCron = () => {
           const pushPayload = JSON.stringify({
             title: "🔥 Protect Your Streak!",
             body: `You have an active streak of ${user.streakCount} days. Finish your 5 words for today before midnight!`,
-            icon: "/icons/icon-192.png",
+            icon: "/android-chrome-192x192.png",
             url: "process.env.FRONTEND_BASE_URL",
           });
 

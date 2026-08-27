@@ -76,7 +76,7 @@ export const initReminderCron = () => {
             title: "🔥 Protect Your Streak!",
             body: `You have an active streak of ${user.streakCount} days. Finish your 5 words for today before midnight!`,
             icon: "/android-chrome-192x192.png",
-            url: "process.env.FRONTEND_BASE_URL",
+            url: process.env.FRONTEND_BASE_URL || "http://localhost:5173",
           });
 
           try {

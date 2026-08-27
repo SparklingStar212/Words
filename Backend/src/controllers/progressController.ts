@@ -31,6 +31,20 @@ export const getTodayProgress = async (
       return;
     }
 
+    // --- STREAK CHECK: Reset if user missed a day ---
+    if (user.lastActiveDate) {
+      const lastActive = new Date(user.lastActiveDate);
+      const currentDate = new Date(today);
+      const diffTime = currentDate.getTime() - lastActive.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      // If more than 1 full day has passed since their last completion, reset streak
+      if (diffDays > 1) {
+        user.streakCount = 0;
+        await user.save();
+      }
+    }
+
     const targetLevel = user.preferredLevel || "Intermediate";
 
     // 2. Check if a daily progress session already exists for TODAY
@@ -41,18 +55,18 @@ export const getTodayProgress = async (
 
     // 3. If NO session exists for today, generate fresh words dynamically using AI!
     if (!dailyProgress) {
-      // Ask Gemini to generate 3 unique words, strictly excluding everything in user.seenWords
+      // Ask Gemini to generate 5 unique words, strictly excluding everything in user.seenWords
       const freshWordDocs = await getUniqueWordsForUser(
         targetLevel,
         user.seenWords || [],
-        5, // <-- Changed from 3 to 5
+        5,
       );
 
       const wordIds = freshWordDocs.map((w: any) => w._id);
       const wordStrings = freshWordDocs.map((w: any) => w.word);
 
       // Create today's learning session record
-      dailyProgress = await DailyProgress.create({
+      await DailyProgress.create({
         userId: userObjectId,
         date: today,
         wordsAssigned: wordIds,
@@ -65,18 +79,19 @@ export const getTodayProgress = async (
         $addToSet: { seenWords: { $each: wordStrings } },
       });
 
-      // Populate the newly created document so the frontend gets full word objects
-      dailyProgress = await dailyProgress.populate(
-        "wordsAssigned wordsCompleted",
-      );
+      // 🔥 FIX: Query the fresh record with proper population so the frontend gets full objects
+      dailyProgress = await DailyProgress.findOne({
+        userId: userObjectId,
+        date: today,
+      }).populate("wordsAssigned wordsCompleted");
     }
 
     // 4. Return the progress package to the frontend
     res.status(200).json({
-      date: dailyProgress.date,
-      completed: dailyProgress.completed,
-      wordsAssigned: dailyProgress.wordsAssigned,
-      wordsCompleted: dailyProgress.wordsCompleted,
+      date: dailyProgress!.date,
+      completed: dailyProgress!.completed,
+      wordsAssigned: dailyProgress!.wordsAssigned,
+      wordsCompleted: dailyProgress!.wordsCompleted,
     });
   } catch (error) {
     console.error("Progress error:", error);

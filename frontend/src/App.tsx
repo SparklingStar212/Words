@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import type { IWord, UserSession } from './types';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
@@ -285,26 +286,8 @@ export default function App() {
     }
   };
 
-  if (token && user) {
-    return (
-      <Dashboard
-        user={user}
-        setUser={setUser}
-        words={words}
-        loadingWords={loadingWords}
-        dailyCompleted={dailyCompleted}
-        sentences={sentences}
-        setSentences={setSentences}
-        feedback={feedback}
-        handleLogout={handleLogout}
-        subscribeToPush={subscribeToPush}
-        playAudio={playAudio}
-        handleSentenceSubmit={handleSentenceSubmit}
-      />
-    );
-  }
 
-  // Inside App.tsx, right near the top of your return statement or auth checks:
+  
   if (token && user && loadingWords && words.length === 0) {
     return (
       <div className="min-h-screen bg-[#F7F5F0] text-[#1C1C1A] flex flex-col items-center justify-center p-4">
@@ -313,23 +296,50 @@ export default function App() {
           <div className="w-6 h-6 border-2 border-[#D97757] border-t-transparent rounded-full animate-spin"></div>
           <p className="text-sm text-[#787570] animate-pulse">Preparing your custom daily vocabulary...</p>
         </div>
+        <Analytics /> {/* 👈 Track loading screen */}
       </div>
     );
   }
 
+  // 2. Render Dashboard once authenticated and loaded
+  if (token && user) {
+    return (
+      <>
+        <Dashboard
+          user={user}
+          setUser={setUser}
+          words={words}
+          loadingWords={loadingWords}
+          dailyCompleted={dailyCompleted}
+          sentences={sentences}
+          setSentences={setSentences}
+          feedback={feedback}
+          handleLogout={handleLogout}
+          subscribeToPush={subscribeToPush}
+          playAudio={playAudio}
+          handleSentenceSubmit={handleSentenceSubmit}
+        />
+        <Analytics /> {/* 👈 Track dashboard views */}
+      </>
+    );
+  }
+
   return (
-    <AuthScreen
-      isRegistering={isRegistering}
-      setIsRegistering={setIsRegistering}
-      email={email}
-      setEmail={setEmail}
-      password={password}
-      setPassword={setPassword}
-      registerLevel={registerLevel}
-      setRegisterLevel={setRegisterLevel}
-      error={error}
-      isLoading={isLoading}
-      handleAuth={handleAuth}
-    />
+    <>
+      <AuthScreen
+        isRegistering={isRegistering}
+        setIsRegistering={setIsRegistering}
+        email={email}
+        setEmail={setEmail}
+        password={password}
+        setPassword={setPassword}
+        registerLevel={registerLevel}
+        setRegisterLevel={setRegisterLevel}
+        error={error}
+        isLoading={isLoading}
+        handleAuth={handleAuth}
+      />
+      <Analytics />
+    </>
   );
 }

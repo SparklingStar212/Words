@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { Resend } from "resend";
+import { DailyProgress } from "../models/DailyProgress.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_key_change_me";
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -145,6 +146,7 @@ export const updatePreferredLevel = async (
       return;
     }
 
+    // 1. Update the user's preferred level
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { preferredLevel },
@@ -155,6 +157,10 @@ export const updatePreferredLevel = async (
       res.status(404).json({ error: "User not found." });
       return;
     }
+
+    // 2. Clear today's progress so fresh words for the new level get generated
+    const today: string = new Date().toISOString().split("T")[0] ?? "";
+    await DailyProgress.deleteOne({ userId, date: today });
 
     res.status(200).json({
       message: "Preferred level updated successfully",

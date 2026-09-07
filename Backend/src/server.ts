@@ -42,7 +42,7 @@ connectDB().then(async () => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 6530;
+const PORT = process.env.PORT;
 
 app.use(cors());
 app.use(express.json());

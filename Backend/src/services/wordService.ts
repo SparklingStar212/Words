@@ -5,8 +5,9 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
 
 const MODEL_CANDIDATES = [
   "gemini-3.7-flash",
+  "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
+  "gemini-2.5-flash",
 ];
 
 /**

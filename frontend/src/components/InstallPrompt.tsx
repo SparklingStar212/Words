@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 // Extend the WindowEventMap for the PWA install event
 interface BeforeInstallPromptEvent extends Event {

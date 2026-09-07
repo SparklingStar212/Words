@@ -9,7 +9,8 @@ import progressRoutes from "./routes/progressRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import { initReminderCron } from "./services/reminderService.js";
 import pushRoutes from "./routes/pushRoutes.js";
-import Word from "./models/Word.js"; // 👈 Import Word model for cleanup
+import userRoutes from "./routes/userRoutes.js"; // 👈 1. Import your user routes file
+import Word from "./models/Word.js";
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.use(express.json());
 
 // API Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes); // 👈 2. Mount it here so /api/users/field works!
 app.use("/api/progress", progressRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/push", pushRoutes);

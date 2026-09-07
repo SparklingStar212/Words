@@ -1,23 +1,13 @@
-import express from "express";
-import { User } from "../models/User.js";
+import { Router } from "express";
+import {
+  updatePreferredField,
+  updatePreferredLevel,
+} from "../controllers/authController.js";
 
-const router = express.Router();
+const router = Router();
 
-router.post("/api/push/subscribe", async (req, res): Promise<void> => {
-  try {
-    const { userId, subscription } = req.body;
-    if (!userId || !subscription) {
-      res.status(400).json({ error: "User ID and subscription required." });
-      return;
-    }
-
-    await User.findByIdAndUpdate(userId, { pushSubscription: subscription });
-    res
-      .status(200)
-      .json({ success: true, message: "Push subscription saved." });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to save push subscription." });
-  }
-});
+// These will now correctly map to PUT /api/users/field and PUT /api/users/level
+router.put("/field", updatePreferredField);
+router.put("/level", updatePreferredLevel);
 
 export default router;

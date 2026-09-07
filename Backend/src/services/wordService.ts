@@ -28,6 +28,11 @@ export async function getUniqueWordsForUser(
       word: { $nin: seenWords },
     } as any);
 
+    // 🛡️ Safety Filter: Instantly drop any legacy placeholders if they survived
+    availableWords = availableWords.filter(
+      (w: any) => !w.example?.includes("Using the word"),
+    );
+
     // 2. If the pool is running low, bulk-generate more via AI tailored to this field!
     if (availableWords.length < 15) {
       console.log(
@@ -41,6 +46,11 @@ export async function getUniqueWordsForUser(
         field: preferredField,
         word: { $nin: seenWords },
       } as any);
+
+      // Apply safety filter again just to be safe
+      availableWords = availableWords.filter(
+        (w: any) => !w.example?.includes("Using the word"),
+      );
     }
 
     // 3. Randomly shuffle and pick the requested count from the available pool

@@ -33,30 +33,46 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event: intercept network requests and serve cached assets when available
+// Fetch event: Network-first for navigation/HTML, cache-first for static assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Only handle GET requests, skip backend API routes, and skip non-http schemes (like chrome-extension://)
-  if (event.request.method === 'GET' && url.protocol.startsWith('http') && !url.pathname.includes('/api/')) {
+  // Skip API routes and non-http schemes
+  if (event.request.method !== 'GET' || !url.protocol.startsWith('http') || url.pathname.includes('/api/')) {
+    return;
+  }
+
+  // For main page navigations (HTML), try Network FIRST so updates show immediately
+  if (event.request.mode === 'navigate') {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(event.request).then((networkResponse) => {
+      fetch(event.request)
+        .then((networkResponse) => {
           return caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, networkResponse.clone());
             return networkResponse;
           });
-        });
-      }).catch(() => {
-        if (event.request.mode === 'navigate') {
+        })
+        .catch(() => {
           return caches.match('/index.html');
-        }
-      })
+        })
     );
+    return;
   }
+
+  // For other static assets (CSS, JS, icons), use Cache-First, falling back to network
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).then((networkResponse) => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
+      });
+    })
+  );
 });
 
 // --- PUSH NOTIFICATION LISTENERS ---

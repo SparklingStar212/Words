@@ -9,13 +9,39 @@ import progressRoutes from "./routes/progressRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import { initReminderCron } from "./services/reminderService.js";
 import pushRoutes from "./routes/pushRoutes.js";
+import Word from "./models/Word.js"; // 👈 Import Word model for cleanup
 
 dotenv.config();
 
-connectDB();
+// Auto-cleanup legacy placeholder words upon server boot
+async function cleanLegacyWords() {
+  try {
+    const result = await Word.deleteMany({
+      $or: [
+        { example: { $regex: /Using the word.*in a sentence/i } },
+        {
+          definition: { $regex: /A valuable term for professional contexts/i },
+        },
+      ],
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(
+        `🧹 Auto-Cleanup: Removed ${result.deletedCount} legacy placeholder words from MongoDB.`,
+      );
+    }
+  } catch (err) {
+    console.error("Auto-cleanup error:", err);
+  }
+}
+
+// Connect to DB and run cleanup
+connectDB().then(async () => {
+  await cleanLegacyWords();
+});
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 6530;
 
 app.use(cors());
 app.use(express.json());

@@ -24,7 +24,7 @@ export const getTodayProgress = async (
     const userObjectId = new Types.ObjectId(userIdStr);
     const today: string = new Date().toISOString().split("T")[0] ?? "";
 
-    // 1. Fetch user to check their preferred complexity level and seen words history
+    // 1. Fetch user to check their preferred level, field, and seen words history
     const user = await User.findById(userObjectId);
     if (!user) {
       res.status(404).json({ error: "User not found." });
@@ -38,7 +38,6 @@ export const getTodayProgress = async (
       const diffTime = currentDate.getTime() - lastActive.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-      // If more than 1 full day has passed since their last completion, reset streak
       if (diffDays > 1) {
         user.streakCount = 0;
         await user.save();
@@ -46,6 +45,7 @@ export const getTodayProgress = async (
     }
 
     const targetLevel = user.preferredLevel || "Intermediate";
+    const targetField = user.preferredField || "General"; // 👈 Capture preferred field
 
     // 2. Check if a daily progress session already exists for TODAY
     let dailyProgress = await DailyProgress.findOne({
@@ -55,11 +55,12 @@ export const getTodayProgress = async (
 
     // 3. If NO session exists for today, generate fresh words dynamically using AI!
     if (!dailyProgress) {
-      // Ask Gemini to generate 5 unique words, strictly excluding everything in user.seenWords
+      // 🔥 CORRECTED ARGUMENT ORDER: (level, field, seenWords, count)
       const freshWordDocs = await getUniqueWordsForUser(
         targetLevel,
-        user.seenWords || [],
-        5,
+        targetField, // 👈 2nd argument: Field
+        user.seenWords || [], // 🛡️ 3rd argument: Seen words history
+        5, // 🔢 4th argument: Count
       );
 
       const wordIds = freshWordDocs.map((w: any) => w._id);
@@ -79,7 +80,7 @@ export const getTodayProgress = async (
         $addToSet: { seenWords: { $each: wordStrings } },
       });
 
-      // 🔥 FIX: Query the fresh record with proper population so the frontend gets full objects
+      // Query the fresh record with proper population
       dailyProgress = await DailyProgress.findOne({
         userId: userObjectId,
         date: today,

@@ -15,6 +15,7 @@ interface DashboardProps {
   subscribeToPush: () => void;
   playAudio: (word: string) => void;
   handleSentenceSubmit: (e: React.FormEvent, item: IWord, wordId: string) => void;
+  onProgressUpdate: () => void; // 👈 Added prop for instant refreshing
 }
 
 export default function Dashboard({
@@ -30,6 +31,7 @@ export default function Dashboard({
   subscribeToPush,
   playAudio,
   handleSentenceSubmit,
+  onProgressUpdate,
 }: DashboardProps) {
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-[#1C1C1A] flex flex-col items-center p-4 sm:p-6">
@@ -60,8 +62,8 @@ export default function Dashboard({
                   body: JSON.stringify({ userId: user.id, preferredLevel: newLevel }),
                 });
 
-                // 2. Refresh daily progress so new words matching this level load instantly
-                window.location.reload();
+                // 2. Fetch new progress instantly without full page reload
+                onProgressUpdate();
               } catch (err) {
                 console.error('Failed to update preferred level:', err);
               }
@@ -92,8 +94,8 @@ export default function Dashboard({
                   body: JSON.stringify({ userId: user.id, preferredField: newField }),
                 });
 
-                // 2. Refresh daily progress so new words matching this field load instantly
-                window.location.reload();
+                // 2. Fetch new progress instantly without full page reload
+                onProgressUpdate();
               } catch (err) {
                 console.error('Failed to update preferred field:', err);
               }
@@ -152,10 +154,10 @@ export default function Dashboard({
             <p className="text-lg font-serif">No words available right now.</p>
             <p className="text-sm text-[#787570]">Check your connection or try refreshing your session.</p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => onProgressUpdate()}
               className="mt-2 px-4 py-2 bg-[#D97757] text-white text-sm rounded-lg font-medium hover:opacity-95 transition cursor-pointer"
             >
-              Refresh App
+              Retry Loading
             </button>
           </div>
         ) : (

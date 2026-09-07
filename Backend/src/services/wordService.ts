@@ -53,7 +53,7 @@ export async function getUniqueWordsForUser(
 }
 
 /**
- * Helper function to ask Gemini for a bulk batch of niche words and enrich them
+ * Helper function to ask Gemini for a bulk batch of rich word objects directly
  */
 async function bulkGenerateAndEnrichWords(
   level: "Beginner" | "Intermediate" | "Advanced",
@@ -64,11 +64,17 @@ async function bulkGenerateAndEnrichWords(
     const fieldInstruction =
       preferredField && preferredField !== "General"
         ? `The words must specifically relate to the academic or professional field of: "${preferredField}".`
-        : `The words should be general, high-value vocabulary suitable for everyday professional and conversational use.`;
+        : `The words should be high-value vocabulary suitable for everyday professional and conversational use.`;
 
     const prompt = `Generate a JSON array of ${count} distinct, sophisticated English words suitable for a ${level} English learner. 
     ${fieldInstruction}
-    Return ONLY a raw JSON array of strings, e.g., ["word1", "word2", "word3"].`;
+    
+    Return ONLY a raw JSON array of objects with these exact keys:
+    - "word": string (lowercase)
+    - "definition": string (clear, accurate, comprehensive definition)
+    - "partOfSpeech": string (e.g., noun, verb, adjective)
+    - "phonetic": string (e.g., /sɪmpəl/)
+    - "example": string (a rich, contextual sentence using the word naturally)`;
 
     let response: any = null;
     let lastError: any = null;
@@ -97,65 +103,30 @@ async function bulkGenerateAndEnrichWords(
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
-    const rawWords: string[] = JSON.parse(cleanedJson);
+    const rawWords: any[] = JSON.parse(cleanedJson);
 
-    // Enrich and save each word to MongoDB globally with its field tag
-    for (const w of rawWords) {
-      const lowerWord = w.toLowerCase();
+    // Save each word object directly into MongoDB with its field tag
+    for (const item of rawWords) {
+      const lowerWord = item.word?.toLowerCase().trim();
+      if (!lowerWord) continue;
+
       const existing = await Word.findOne({
         word: lowerWord,
         field: preferredField,
       } as any);
       if (existing) continue;
 
-      try {
-        const dictRes = await fetch(
-          `https://api.dictionaryapi.dev/api/v2/entries/en/${lowerWord}`,
-        );
-
-        let definition = "A valuable term for specialized communication.";
-        let partOfSpeech = "noun";
-        let audioUrl = "";
-        let phoneticText = `/${lowerWord}/`;
-        let example = `Practice using "${lowerWord}" in your field.`;
-
-        if (dictRes.ok) {
-          const dictData = (await dictRes.json()) as any[];
-          const entry = dictData[0];
-          definition =
-            entry.meanings[0]?.definitions[0]?.definition || definition;
-          partOfSpeech = entry.meanings[0]?.partOfSpeech || partOfSpeech;
-          example = entry.meanings[0]?.definitions[0]?.example || example;
-
-          for (const phonetic of entry.phonetics || []) {
-            if (phonetic.audio && !audioUrl) audioUrl = phonetic.audio;
-            if (phonetic.text && !phoneticText) phoneticText = phonetic.text;
-          }
-        }
-
-        await Word.create({
-          word: lowerWord,
-          level,
-          field: preferredField, // 👈 Save the field tag
-          definition,
-          partOfSpeech,
-          audioUrl,
-          phonetic: phoneticText,
-          example,
-        });
-      } catch {
-        // Fallback entry if dictionary lookup fails
-        await Word.create({
-          word: lowerWord,
-          level,
-          field: preferredField,
-          definition: "A valuable term for professional contexts.",
-          partOfSpeech: "noun",
-          audioUrl: "",
-          phonetic: `/${lowerWord}/`,
-          example: `Apply "${lowerWord}" within your profession.`,
-        }).catch(() => {});
-      }
+      await Word.create({
+        word: lowerWord,
+        level,
+        field: preferredField,
+        definition:
+          item.definition || "A valuable term for professional contexts.",
+        partOfSpeech: item.partOfSpeech || "noun",
+        phonetic: item.phonetic || `/${lowerWord}/`,
+        audioUrl: "", // Handled gracefully via browser speech synthesis fallback
+        example: item.example || `Practice using "${lowerWord}" properly.`,
+      }).catch(() => {}); // Silently ignore duplicate key inserts
     }
   } catch (err) {
     console.error("Bulk generation error:", err);

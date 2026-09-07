@@ -26,11 +26,30 @@ export default function App() {
   const [sentences, setSentences] = useState<{ [key: string]: string }>({});
   const [feedback, setFeedback] = useState<{ [key: string]: { success?: string; error?: string } }>({});
 
+  const fetchDailyProgress = async (userId: string) => {
+    setLoadingWords(true);
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:6530';
+      const res = await fetch(`${BACKEND_URL}/api/progress/${userId}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch progress');
+
+      setWords(data.wordsAssigned || []);
+      setDailyCompleted(data.completed || false);
+    } catch (err) {
+      console.error('Failed to load words:', err);
+      setWords([]);
+    } finally {
+      setLoadingWords(false);
+    }
+  };
+
   useEffect(() => {
     if (user && user.id) {
       fetchDailyProgress(user.id);
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Helper utility to convert VAPID public key for browser subscription
   const urlBase64ToUint8Array = (base64String: string) => {
@@ -83,25 +102,6 @@ export default function App() {
     } catch (err) {
       console.error('Push subscription error:', err);
       alert(`Failed to subscribe: ${(err as Error).message}`);
-    }
-  };
-
-  const fetchDailyProgress = async (userId: string) => {
-    setLoadingWords(true);
-    try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:6530';
-      const res = await fetch(`${BACKEND_URL}/api/progress/${userId}`);
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch progress');
-
-      setWords(data.wordsAssigned || []);
-      setDailyCompleted(data.completed || false);
-    } catch (err) {
-      console.error('Failed to load words:', err);
-      setWords([]);
-    } finally {
-      setLoadingWords(false);
     }
   };
 
@@ -165,7 +165,7 @@ export default function App() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true); // Turn on loading spinner
+    setIsLoading(true);
     const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
 
     try {
@@ -189,7 +189,7 @@ export default function App() {
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setIsLoading(false); // Turn off loading spinner whether it succeeded or failed
+      setIsLoading(false);
     }
   };
 
@@ -286,8 +286,6 @@ export default function App() {
     }
   };
 
-
-  
   if (token && user && loadingWords && words.length === 0) {
     return (
       <div className="min-h-screen bg-[#F7F5F0] text-[#1C1C1A] flex flex-col items-center justify-center p-4">
@@ -296,12 +294,11 @@ export default function App() {
           <div className="w-6 h-6 border-2 border-[#D97757] border-t-transparent rounded-full animate-spin"></div>
           <p className="text-sm text-[#787570] animate-pulse">Preparing your custom daily vocabulary...</p>
         </div>
-        <Analytics /> {/* 👈 Track loading screen */}
+        <Analytics />
       </div>
     );
   }
 
-  // 2. Render Dashboard once authenticated and loaded
   if (token && user) {
     return (
       <>
@@ -318,8 +315,9 @@ export default function App() {
           subscribeToPush={subscribeToPush}
           playAudio={playAudio}
           handleSentenceSubmit={handleSentenceSubmit}
+          onProgressUpdate={() => fetchDailyProgress(user.id)} // 👈 Passed down for instant updates!
         />
-        <Analytics /> {/* 👈 Track dashboard views */}
+        <Analytics />
       </>
     );
   }

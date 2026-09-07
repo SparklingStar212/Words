@@ -104,9 +104,11 @@ export default function Dashboard({
           >
             <option value="General">General</option>
             <option value="Chemistry & Science">Chemistry & Science</option>
+            <option value="Biology">Biology</option>
             <option value="Business & Finance">Business & Finance</option>
             <option value="Technology & Engineering">Technology & Engineering</option>
-            <option value="Law & Medicine">Law & Medicine</option>
+            <option value="Law">Law</option>
+            <option value="Medicine">Medicine</option>
           </select>
 
           {/* Push Notification Button */}

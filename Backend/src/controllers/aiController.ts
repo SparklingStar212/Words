@@ -12,9 +12,9 @@ if (!apiKey) {
 const ai = new GoogleGenAI({ apiKey });
 
 const FALLBACK_MODELS = [
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
+  "gemini-2.5-flash", // Stable, highly reliable workhorse
+  "gemini-3.5-flash", // Powerful production Flash model
+  "gemini-2.5-pro",
 ];
 
 export const validateSentence = async (

@@ -13,7 +13,7 @@ export const registerUser = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { email, password, preferredLevel } = req.body;
+    const { email, password, preferredLevel, preferredField } = req.body;
 
     if (!email || !password) {
       res.status(400).json({ error: "Email and password are required." });
@@ -36,6 +36,7 @@ export const registerUser = async (
       email,
       passwordHash,
       preferredLevel: preferredLevel || "Intermediate",
+      preferredField: preferredField || "General",
       streakCount: 0,
     });
 
@@ -50,7 +51,7 @@ export const registerUser = async (
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1C1C1A;">
               <h2 style="color: #D97757;">Welcome aboard, learner!</h2>
               <p>Hi there,</p>
-              <p>Thank you for creating an account with <strong>Words</strong>. Your daily vocabulary level is set to <strong>${newUser.preferredLevel}</strong>.</p>
+              <p>Thank you for creating an account with <strong>Words</strong>. Your daily vocabulary level is set to <strong>${newUser.preferredLevel}</strong> (${newUser.preferredField}).</p>
               <p>Every day, you'll receive 5 hand-picked words to absorb, listen to, and master by writing your own custom sentences. Consistency is the secret to fluency!</p>
               <div style="margin: 24px 0;">
                 <a href="${process.env.FRONTEND_BASE_URL || "http://localhost:5173"}" style="background-color: #D97757; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 500; display: inline-block;">Open Your Dashboard</a>
@@ -61,7 +62,6 @@ export const registerUser = async (
         });
         console.log(`Welcome email successfully sent to: ${newUser.email}`);
       } catch (emailErr) {
-        // Non-blocking catch so signup succeeds even if email dispatch encounters an issue
         console.error(
           `Failed to send welcome email to ${newUser.email}:`,
           emailErr,
@@ -82,6 +82,7 @@ export const registerUser = async (
         email: newUser.email,
         streakCount: newUser.streakCount,
         preferredLevel: newUser.preferredLevel,
+        preferredField: newUser.preferredField,
       },
     });
   } catch (error) {
@@ -125,6 +126,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         streakCount: user.streakCount,
         preferredLevel: user.preferredLevel,
+        preferredField: user.preferredField || "General",
       },
     });
   } catch (error) {
@@ -146,7 +148,6 @@ export const updatePreferredLevel = async (
       return;
     }
 
-    // 1. Update the user's preferred level
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { preferredLevel },
@@ -158,7 +159,6 @@ export const updatePreferredLevel = async (
       return;
     }
 
-    // 2. Clear today's progress so fresh words for the new level get generated
     const today: string = new Date().toISOString().split("T")[0] ?? "";
     await DailyProgress.deleteOne({ userId, date: today });
 
@@ -169,6 +169,52 @@ export const updatePreferredLevel = async (
         email: updatedUser.email,
         streakCount: updatedUser.streakCount,
         preferredLevel: updatedUser.preferredLevel,
+        preferredField: updatedUser.preferredField,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
+
+export const updatePreferredField = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { userId, preferredField } = req.body;
+
+    if (!userId || !preferredField) {
+      res
+        .status(400)
+        .json({ error: "User ID and preferred field are required." });
+      return;
+    }
+
+    // 1. Update the user's preferred field
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { preferredField },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      res.status(404).json({ error: "User not found." });
+      return;
+    }
+
+    // 2. Clear today's progress so fresh field-specific words get generated
+    const today: string = new Date().toISOString().split("T")[0] ?? "";
+    await DailyProgress.deleteOne({ userId, date: today });
+
+    res.status(200).json({
+      message: "Preferred field updated successfully",
+      user: {
+        id: updatedUser._id,
+        email: updatedUser.email,
+        streakCount: updatedUser.streakCount,
+        preferredLevel: updatedUser.preferredLevel,
+        preferredField: updatedUser.preferredField,
       },
     });
   } catch (error) {

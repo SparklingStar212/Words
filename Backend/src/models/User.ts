@@ -1,11 +1,12 @@
 import { Schema, model, Document } from "mongoose";
 
-// 1. Update the TypeScript interface to include pushSubscription
+// 1. Update the TypeScript interface to include preferredField and pushSubscription
 export interface IUser extends Document {
   email: string;
   passwordHash: string;
   streakCount: number;
   preferredLevel: "Beginner" | "Intermediate" | "Advanced";
+  preferredField: string; // 👈 Added field preference
   lastActiveDate?: string;
   seenWords: string[];
   pushSubscription?: {
@@ -17,7 +18,7 @@ export interface IUser extends Document {
   } | null;
 }
 
-// 2. Add pushSubscription to the Mongoose Schema definition
+// 2. Add preferredField to the Mongoose Schema definition
 const userSchema = new Schema<IUser>(
   {
     email: { type: String, required: true, unique: true },
@@ -27,6 +28,10 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ["Beginner", "Intermediate", "Advanced"],
       default: "Intermediate",
+    },
+    preferredField: {
+      type: String,
+      default: "General", // 👈 Added default profession/field
     },
     lastActiveDate: { type: String },
     pushSubscription: { type: Object, default: null },

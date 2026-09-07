@@ -1,5 +1,6 @@
 import React from 'react';
 import type { IWord, UserSession } from '../types';
+import InstallPrompt from './InstallPrompt';
 
 interface DashboardProps {
   user: UserSession;
@@ -39,7 +40,7 @@ export default function Dashboard({
           <p className='hidden md:flex'>words</p>
         </h1>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           {/* Level Selector */}
           <select
             value={user.preferredLevel || 'Intermediate'}
@@ -72,6 +73,40 @@ export default function Dashboard({
             <option value="Advanced">Advanced</option>
           </select>
 
+          {/* Field Selector */}
+          <select
+            value={user.preferredField || 'General'}
+            onChange={async (e) => {
+              const newField = e.target.value;
+              const updatedUser = { ...user, preferredField: newField };
+              setUser(updatedUser);
+              localStorage.setItem('words_user', JSON.stringify(updatedUser));
+
+              try {
+                const BACKEND_URL = import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:6530';
+
+                // 1. Update preferred field on the backend
+                await fetch(`${BACKEND_URL}/api/users/field`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: user.id, preferredField: newField }),
+                });
+
+                // 2. Refresh daily progress so new words matching this field load instantly
+                window.location.reload();
+              } catch (err) {
+                console.error('Failed to update preferred field:', err);
+              }
+            }}
+            className="text-xs bg-[#FFFFFF] border border-[#E5E2DC] rounded-lg px-1.5 sm:px-2 py-1 text-[#1C1C1A] focus:outline-none focus:border-[#D97757]"
+          >
+            <option value="General">General</option>
+            <option value="Chemistry & Science">Chemistry & Science</option>
+            <option value="Business & Finance">Business & Finance</option>
+            <option value="Technology & Engineering">Technology & Engineering</option>
+            <option value="Law & Medicine">Law & Medicine</option>
+          </select>
+
           {/* Push Notification Button */}
           <button
             onClick={subscribeToPush}
@@ -99,6 +134,7 @@ export default function Dashboard({
 
       {/* Main Content Area */}
       <main className="w-full max-w-2xl flex flex-col gap-6 pb-12">
+        <InstallPrompt />
         <div className="text-center">
           <h2 className="text-2xl font-serif mb-1">Your Daily 5 Words</h2>
           <p className="text-sm text-[#787570]">
@@ -185,8 +221,8 @@ export default function Dashboard({
                         onChange={(e) => setSentences({ ...sentences, [item._id]: e.target.value })}
                         placeholder={`Type a sentence containing "${item.word}"...`}
                         className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none bg-[#F7F5F0]/30 ${isSuccess
-                            ? 'border-green-300 bg-green-50/30 text-green-800'
-                            : 'border-[#E5E2DC] focus:border-[#D97757]'
+                          ? 'border-green-300 bg-green-50/30 text-green-800'
+                          : 'border-[#E5E2DC] focus:border-[#D97757]'
                           }`}
                       />
                       <button

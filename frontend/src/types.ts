@@ -14,4 +14,5 @@ export interface UserSession {
   email: string;
   streakCount: number;
   preferredLevel: "Beginner" | "Intermediate" | "Advanced";
+  preferredField?: string; // 👈 Add this property here
 }
